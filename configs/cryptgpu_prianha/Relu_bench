@@ -1,0 +1,14 @@
+dtype=32
+ssl=0
+function=404,405,406
+rxbuffer=10000
+txbuffer=10000
+verifybuffer=2
+protocols=5
+split=0
+threads=1
+input=10000,100000,1000000,10000000
+pre=0,1
+packbool=0,1
+# keep this last line
+
