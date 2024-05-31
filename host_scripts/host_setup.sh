@@ -75,7 +75,7 @@ cd "$REPO_DIR"
 ###git checkout "$REPO_COMMIT"
 
 # switch to fork
-git checkout extended
+git checkout quic
 #git checkout NN
 
 # git clone https://github.com/chart21/flexNN.git SimpleNN
