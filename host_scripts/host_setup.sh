@@ -75,13 +75,13 @@ cd "$REPO_DIR"
 ###git checkout "$REPO_COMMIT"
 
 # switch to fork
-# git checkout extended
-git checkout NN
+git checkout extended
+# git checkout NN
 
-git clone https://github.com/chart21/flexNN.git SimpleNN
-cd SimpleNN
-git checkout hpmpc
-cd ..
+# git clone https://github.com/chart21/flexNN.git SimpleNN
+# cd SimpleNN
+# git checkout hpmpc
+# cd ..
 
 # adjust script to specific needs
 echo "wait" >> ./scripts/split-roles-3-execute.sh
