@@ -45,47 +45,21 @@ touch testresults
 
 cd "$REPO_DIR"
 
-# different split role script, different ip definition...
-if [ "$splitroles" -lt 1 ]; then
-    # define ip addresses of the other party members
-    if [ "$protocol" -lt 7 ]; then
-        [ "$player" -eq 0 ] && ipA="$network".3 && ipB="$network".4
-        [ "$player" -eq 1 ] && ipA="$network".2 && ipB="$network".4
-        [ "$player" -eq 2 ] && ipA="$network".2 && ipB="$network".3
-    else
-        [ "$player" -eq 0 ] && ipA="$network".3 && ipB="$network".4 && ipC="$network".5
-        [ "$player" -eq 1 ] && ipA="$network".2 && ipB="$network".4 && ipC="$network".5
-        [ "$player" -eq 2 ] && ipA="$network".2 && ipB="$network".3 && ipC="$network".5
-        [ "$player" -eq 3 ] && ipA="$network".2 && ipB="$network".3 && ipC="$network".4
-    fi
-else
-    # define all ips
-    ipA="$network".2
-    ipB="$network".3
-    ipC="$network".4
-    ipD="$network".5
-fi
+ipA="$network".2
+ipB="$network".3
+ipC="$network".4
+ipD="$network".5
 
 {
-    echo "./scripts/config.sh -p $player -n $size -d $datatype -s $protocol -e $preprocess -h $ssl -x $comp"
+    # echo "./scripts/config.sh -p $player -n $size -d $datatype -s $protocol -e $preprocess -h $ssl -x $comp"
+    echo "make -j COMPILER=$comp SPLITROLES=$splitroles PARTY=$player NUM_INPUTS=$size PROTOCOL=$protocol DATTYPE=$datatype PRE=$preprocess COMPRESS=$packbool USE_SSL=$ssl PROCESS_NUM=$threads FUNCTION_IDENTIFIER=$fun SEND_BUFFER=$txbuffer RECV_BUFFER=$rxbuffer VERIFY_BUFFER=$verifybuffer"
 
-    # set config and compile experiment
-    if [ "$splitroles" -eq 0 ]; then
-        /bin/time -f "$timerf" ./scripts/config.sh -p "$player" -n "$size" -d "$datatype" -x "$comp" \
-            -s "$protocol" -e "$preprocess" -c "$packbool" -o "$optshare" -h "$ssl" -b 25000 \
-            -j "$threads" -f "$fun" -y "$txbuffer" -z "$rxbuffer" -m "$verifybuffer"
-    else
-        # with splitroles active, "-p 3" would through error. Omit -p as unneeded
-        /bin/time -f "$timerf" ./scripts/config.sh -n "$size" -d "$datatype" -x "$comp" \
-            -s "$protocol" -e "$preprocess" -c "$packbool" -o "$optshare" -h "$ssl" -b 25000 \
-            -j "$threads" -f "$fun" -y "$txbuffer" -z "$rxbuffer" -m "$verifybuffer"
-    fi
     
-    [ "$splitroles" -eq 1 ] && ./scripts/split-roles-3-compile.sh -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" -x "$comp"
-    [ "$splitroles" -eq 2 ] && ./scripts/split-roles-3to4-compile.sh -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" -d "$ipD" -x "$comp"
-    [ "$splitroles" -eq 3 ] && ./scripts/split-roles-4-compile.sh -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" -d "$ipD" -x "$comp"
+    /bin/time -f "$timerf" make -j COMPILER="$comp" SPLITROLES="$splitroles" PARTY="$player" NUM_INPUTS="$size" \
+        PROTOCOL="$protocol" DATTYPE="$datatype" PRE="$preprocess" COMPRESS="$packbool" \
+        USE_SSL="$ssl" PROCESS_NUM="$threads" FUNCTION_IDENTIFIER="$fun" SEND_BUFFER="$txbuffer" RECV_BUFFER="$rxbuffer" VERIFY_BUFFER="$verifybuffer" 
     
-    echo "$(du -BM run-P* | cut -d 'M' -f 1 | head -n 1) (Binary file size in MiB)"
+    echo "$(du -BM executables/run-P* | cut -d 'M' -f 1 | head -n 1) (Binary file size in MiB)"
 
 } |& tee testresults
 
@@ -134,101 +108,94 @@ success=true
 
 pos_sync --timeout 600
 
-# run the SMC protocol
-                              # skip 4th node here
-if [ "$splitroles" -eq 0 ]; then 
-    if [ "$protocol" -lt 7 ]; then
-        if [ "$player" -lt 3 ]; then
-            /bin/time -f "$timerf" timeout 1000s ./run-P"$player".o "$ipA" "$ipB" &>> testresults || success=false
-        fi
-    else
-        /bin/time -f "$timerf" timeout 1000s ./run-P"$player".o "$ipA" "$ipB" "$ipC" &>> testresults || success=false
-    fi
-elif [ "$splitroles" -eq 1 ] && [ "$player" -lt 3 ]; then
-    /bin/time -f "$timerf" timeout 1000s ./scripts/split-roles-3-execute.sh -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" &>> testresults || success=false
-elif [ "$splitroles" -eq 2 ]; then
-    /bin/time -f "$timerf" timeout 1000s ./scripts/split-roles-3to4-execute.sh -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" -d "$ipD" &>> testresults || success=false
-elif [ "$splitroles" -eq 3 ]; then
-    /bin/time -f "$timerf" timeout 1000s ./scripts/split-roles-4-execute.sh -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" -d "$ipD" &>> testresults || success=false
+
+if [ "$protocol" -eq 4 ]; then
+    /bin/time -f "$timerf" timeout 1000s ./scripts/run.sh -s "$splitroles" -p "$player" -a "$ipA" -b "$ipB" &>> testresults || success=false
+elif [ "$protocol" -lt 7 ]; then
+    /bin/time -f "$timerf" timeout 1000s ./scripts/run.sh -s "$splitroles" -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" &>> testresults || success=false
+else
+    /bin/time -f "$timerf" timeout 1000s ./scripts/run.sh -s "$splitroles" -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" -d "$ipD" &>> testresults || success=false
 fi
 
-# divide external runtime x*j
-# Todo: divide normal binary run by j*j
 
 
-    # binary:   calculate mean of j results running concurrent ( /j *j )
-    # 3nodes:   calculate mean of 6*j results running concurrent ( /6*j *6*j )
-    # 3-4nodes: calculate mean of 24*j results running concurrent ( /24*j *24*j )
-    # 4nodes:   calculate mean of 24*j results running concurrent ( /24*j *24*j )
-#default divisor
-divisor=1
-divisorExt=1
-    
-    [ "$splitroles" -eq 0 ] && divisor=$((threads*threads)) && divisorExt=$((threads))
-    [ "$splitroles" -eq 1 ] && divisor=$((6*6*threads*threads)) && divisorExt=$((6*threads))
-    [ "$splitroles" -eq 2 ] && divisor=$((24*24*threads*threads)) && divisorExt=$((24*threads))
-    [ "$splitroles" -eq 3 ] && divisor=$((24*24*threads*threads)) && divisorExt=$((24*threads))
+    # divide external runtime x*j
+    # Todo: divide normal binary run by j*j
 
-    # sum=$(grep "measured to initialize program" testresults | cut -d 's' -f 2 | awk '{print $5}' | paste -s -d+ | bc)
-    # average=$(echo "scale=6;$sum / $divisor" | bc -l)
-    # echo "Time measured to initialize program: ${average}s" &>> testresults
-       max=$(grep "measured to initialize program" testresults | cut -d 's' -f 2 | awk '{print $5}' | sort -nr | head -1) 
-    average=$(echo "scale=6;$max / $divisorExt" | bc -l)
-    echo "Time measured to initialize program: ${average}s" &>> testresults
 
-    if [ "$preprocess" -eq 1 ]; then
-        # sum=$(grep "preprocessing chrono" testresults | cut -d 's' -f 4 | awk '{print $3}' | paste -s -d+ | bc)
+        # binary:   calculate mean of j results running concurrent ( /j *j )
+        # 3nodes:   calculate mean of 6*j results running concurrent ( /6*j *6*j )
+        # 3-4nodes: calculate mean of 24*j results running concurrent ( /24*j *24*j )
+        # 4nodes:   calculate mean of 24*j results running concurrent ( /24*j *24*j )
+    #default divisor
+    divisor=1
+    divisorExt=1
+        
+        [ "$splitroles" -eq 0 ] && divisor=$((threads*threads)) && divisorExt=$((threads))
+        [ "$splitroles" -eq 1 ] && divisor=$((6*6*threads*threads)) && divisorExt=$((6*threads))
+        [ "$splitroles" -eq 2 ] && divisor=$((24*24*threads*threads)) && divisorExt=$((24*threads))
+        [ "$splitroles" -eq 3 ] && divisor=$((24*24*threads*threads)) && divisorExt=$((24*threads))
+
+        # sum=$(grep "measured to initialize program" testresults | cut -d 's' -f 2 | awk '{print $5}' | paste -s -d+ | bc)
         # average=$(echo "scale=6;$sum / $divisor" | bc -l)
-    # echo "Time measured to perform preprocessing chrono: ${average}s" &>> testresults
-    max=$(grep "preprocessing chrono" testresults | cut -d 's' -f 4 | awk '{print $3}' | sort -nr | head -1) 
+        # echo "Time measured to initialize program: ${average}s" &>> testresults
+           max=$(grep "measured to initialize program" testresults | cut -d 's' -f 2 | awk '{print $5}' | sort -nr | head -1) 
         average=$(echo "scale=6;$max / $divisorExt" | bc -l)
-    echo "Time measured to perform preprocessing chrono: ${average}s" &>> testresults
-    fi
+        echo "Time measured to initialize program: ${average}s" &>> testresults
 
-    sum=$(grep "computation clock" testresults | cut -d 's' -f 2 | awk '{print $6}' | paste -s -d+ | bc)
-    average=$(echo "scale=6;$sum / $divisor" | bc -l)
-    echo "Time measured to perform computation clock: ${average}s" &>> testresults
+        if [ "$preprocess" -eq 1 ]; then
+            # sum=$(grep "preprocessing chrono" testresults | cut -d 's' -f 4 | awk '{print $3}' | paste -s -d+ | bc)
+            # average=$(echo "scale=6;$sum / $divisor" | bc -l)
+        # echo "Time measured to perform preprocessing chrono: ${average}s" &>> testresults
+        max=$(grep "preprocessing chrono" testresults | cut -d 's' -f 4 | awk '{print $3}' | sort -nr | head -1) 
+            average=$(echo "scale=6;$max / $divisorExt" | bc -l)
+        echo "Time measured to perform preprocessing chrono: ${average}s" &>> testresults
+        fi
 
-    sum=$(grep "computation getTime" testresults | cut -d 's' -f 2 | awk '{print $6}' | paste -s -d+ | bc)
-    average=$(echo "scale=6;$sum / $divisor" | bc -l)
-    echo "Time measured to perform computation getTime: ${average}s" &>> testresults
+        sum=$(grep "computation clock" testresults | cut -d 's' -f 2 | awk '{print $6}' | paste -s -d+ | bc)
+        average=$(echo "scale=6;$sum / $divisor" | bc -l)
+        echo "Time measured to perform computation clock: ${average}s" &>> testresults
 
-max=$(grep "computation chrono" testresults | cut -d 's' -f 2 | awk '{print $6}' | sort -nr | head -1)
-    average=$(echo "scale=6;$max / $divisorExt" | bc -l)
-    echo "Time measured to perform computation chrono: ${average}s" &>> testresults
-# sum=$(grep "computation chrono" testresults | cut -d 's' -f 2 | awk '{print $6}' | paste -s -d+ | bc)
-    # average=$(echo "scale=6;$sum / $divisor" | bc -l)
-    # echo "Time measured to perform computation chrono: ${average}s" &>> testresults
+        sum=$(grep "computation getTime" testresults | cut -d 's' -f 2 | awk '{print $6}' | paste -s -d+ | bc)
+        average=$(echo "scale=6;$sum / $divisor" | bc -l)
+        echo "Time measured to perform computation getTime: ${average}s" &>> testresults
 
-    runtimeext=$(grep "Elapsed wall clock" testresults | tail -n 1 | cut -d ' ' -f 1)
-    average=$(echo "scale=6;$runtimeext / $divisorExt" | bc -l)
-    echo "$average (Elapsed wall clock time in seconds)" &>> testresults
+    max=$(grep "computation chrono" testresults | cut -d 's' -f 2 | awk '{print $6}' | sort -nr | head -1)
+        average=$(echo "scale=6;$max / $divisorExt" | bc -l)
+        echo "Time measured to perform computation chrono: ${average}s" &>> testresults
+    # sum=$(grep "computation chrono" testresults | cut -d 's' -f 2 | awk '{print $6}' | paste -s -d+ | bc)
+        # average=$(echo "scale=6;$sum / $divisor" | bc -l)
+        # echo "Time measured to perform computation chrono: ${average}s" &>> testresults
+
+        runtimeext=$(grep "Elapsed wall clock" testresults | tail -n 1 | cut -d ' ' -f 1)
+        average=$(echo "scale=6;$runtimeext / $divisorExt" | bc -l)
+        echo "$average (Elapsed wall clock time in seconds)" &>> testresults
 
 
-pos_sync
+    pos_sync
 
-####
-#  environment manipulation reset section start
-####
+    ####
+    #  environment manipulation reset section start
+    ####
 
-case " ${types[*]} " in
+    case " ${types[*]} " in
 
-    *" FREQS "*)
-        resetFrequency;;&
-    *" RAM "*)
-        unlimitRAM;;&
-    *" BANDWIDTHS "*|*" LATENCIES "*|*" PACKETDROPS "*)
-    	resetTrafficControl;;&
-    *" CPUS "*)
-        unlimitCPUs
-esac
+        *" FREQS "*)
+            resetFrequency;;&
+        *" RAM "*)
+            unlimitRAM;;&
+        *" BANDWIDTHS "*|*" LATENCIES "*|*" PACKETDROPS "*)
+            resetTrafficControl;;&
+        *" CPUS "*)
+            unlimitCPUs
+    esac
 
-####
-#  environment manipulation reset section stop
-####
+    ####
+    #  environment manipulation reset section stop
+    ####
 
-echo "experiment finished"  >> testresults
-pos_upload --loop testresults
-pos_upload --loop terminal_output.txt
-# abort if no success
-$success
+    echo "experiment finished"  >> testresults
+    pos_upload --loop testresults
+    # pos_upload --loop terminal_output.txt
+    # abort if no success
+    $success

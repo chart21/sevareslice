@@ -74,14 +74,15 @@ cd "$REPO_DIR"
 # use a stable state of the MP-Slice repo
 ###git checkout "$REPO_COMMIT"
 
+git submodule update --init --recursive
 # switch to fork
 # git checkout extended
-git checkout NN
+# git checkout NN
 
-git clone https://github.com/chart21/flexNN.git SimpleNN
-cd SimpleNN
-git checkout hpmpc
-cd ..
+# git clone https://github.com/chart21/flexNN.git SimpleNN
+# cd SimpleNN
+# git checkout hpmpc
+# cd ..
 
 # adjust script to specific needs
 echo "wait" >> ./scripts/split-roles-3-execute.sh
