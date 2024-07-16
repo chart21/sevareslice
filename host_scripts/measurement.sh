@@ -108,15 +108,17 @@ success=true
 
 pos_sync --timeout 600
 
-
-if [ "$protocol" -eq 4 ]; then
-    /bin/time -f "$timerf" timeout 1000s ./scripts/run.sh -s "$splitroles" -p "$player" -a "$ipA" -b "$ipB" &>> testresults || success=false
-elif [ "$protocol" -lt 7 ]; then
-    /bin/time -f "$timerf" timeout 1000s ./scripts/run.sh -s "$splitroles" -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" &>> testresults || success=false
-else
+if [ "$splitroles" -eq 2 ]; then
     /bin/time -f "$timerf" timeout 1000s ./scripts/run.sh -s "$splitroles" -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" -d "$ipD" &>> testresults || success=false
+else
+    if [ "$protocol" -eq 4 ]; then
+        /bin/time -f "$timerf" timeout 1000s ./scripts/run.sh -s "$splitroles" -p "$player" -a "$ipA" -b "$ipB" &>> testresults || success=false
+    elif [ "$protocol" -lt 7 ]; then
+        /bin/time -f "$timerf" timeout 1000s ./scripts/run.sh -s "$splitroles" -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" &>> testresults || success=false
+    else
+        /bin/time -f "$timerf" timeout 1000s ./scripts/run.sh -s "$splitroles" -p "$player" -a "$ipA" -b "$ipB" -c "$ipC" -d "$ipD" &>> testresults || success=false
+    fi
 fi
-
 
 
     # divide external runtime x*j
