@@ -24,7 +24,7 @@ groupsize=${#nodes[*]}
 
 # driver for Intel Network Adapter for E810 100G card
 installDriver() {
-	wget https://downloadmirror.intel.com/812404/ice-1.13.7.tar.gz
+	wget -O ice-1.13.7.tar.gz "https://sourceforge.net/projects/e1000/files/ice%20stable/1.13.7/ice-1.13.7.tar.gz/download"
 	tar -xf ice-1.13.7.tar.gz
 	cd ice-1.13.7/src/
 	make install &> makelog || true
@@ -82,7 +82,7 @@ ips=()
 #### three nodes direct connection topology if true
 ###elif [ "$nic1" != 0 ]; then
 # four nodes direct connection topology if true
-if [ "$nic1" != 0 ] && [ "$nic2" != 0 ]; then
+if [ "$groupsize" -ge 4 ] && [ "$nic1" != 0 ] && [ "$nic2" != 0 ]; then
 
 	# to achieve high speeds, install ddp drivers
 	highspeed=$(hostname | grep -cE "idex|meld|tinyman|yieldly|algofi|gard|goracle|zone")
@@ -100,9 +100,9 @@ if [ "$nic1" != 0 ] && [ "$nic2" != 0 ]; then
 	[ "$ipaddr" -eq 4 ] && ips+=( 5 2 3 )
 	[ "$ipaddr" -eq 5 ] && ips+=( 2 3 4 )
 
-	ip addr add 10.10."$network"."$ipaddr"/24 dev "$nic0"
-	ip addr add 10.10."$network"."$ipaddr"/24 dev "$nic1"
-	ip addr add 10.10."$network"."$ipaddr"/24 dev "$nic2"
+	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic0"
+	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic1"
+	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic2"
 
 	ip link set dev "$nic0" up
 	ip link set dev "$nic1" up
@@ -137,8 +137,8 @@ elif [ "$nic1" != 0 ]; then
 	[ "$ipaddr" -eq 3 ] && ips+=( 4 2 )
 	[ "$ipaddr" -eq 4 ] && ips+=( 2 3 )
 
-	ip addr add 10.10."$network"."$ipaddr"/24 dev "$nic0"
-	ip addr add 10.10."$network"."$ipaddr"/24 dev "$nic1"
+	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic0"
+	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic1"
 
 	ip link set dev "$nic0" up
 	ip link set dev "$nic1" up
@@ -147,7 +147,7 @@ elif [ "$nic1" != 0 ]; then
 	ip route add 10.10."$network"."${ips[1]}" dev "$nic1"
 
 	# to achieve high speeds, increase mtu
-	if [ "$(hostname | grep -cE "meld|tinyman|yieldly|gard|goracle|zone")" -eq 1 ]; then
+	if [ "$(hostname | grep -cE "idex|meld|tinyman|yieldly|algofi|gard|goracle|zone")" -eq 1 ]; then
 		ip link set dev "$nic0" mtu 9700
 		ip link set dev "$nic1" mtu 9700
 	fi
