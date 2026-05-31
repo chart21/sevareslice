@@ -57,6 +57,8 @@ setupExperiment() {
 	for node in "${NODES[@]}"; do
 		{ "$POS" comm laun --infile host_scripts/host_setup.sh --blocking "$node";
 		echo "      $node host setup successfull";
+		scp -o StrictHostKeyChecking=no host_scripts/experiment-setup.sh "$node":/root/sevarebench/host_scripts/experiment-setup.sh;
+		scp -o StrictHostKeyChecking=no host_scripts/manipulate.sh "$node":/root/sevarebench/host_scripts/manipulate.sh;
 		echo "    running experiment setup of $node";
 		"$POS" comm laun --blocking "$node" -- \
 			/bin/bash "$path"experiment-setup.sh "$ipaddr" "$SWAP" "$NETWORK" "${NODES[*]}";

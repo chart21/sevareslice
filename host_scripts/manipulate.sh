@@ -3,6 +3,41 @@
 # exit on error
 set -e
 
+load_nics() {
+    # Resolve physical NICs dynamically based on active point-to-point routes
+    get_nic_for_ip() {
+        local peer_ip="$network.$1"
+        local dev
+        dev=$(ip route get "$peer_ip" 2>/dev/null | grep -oP 'dev \K\S+')
+        if [ -z "$dev" ]; then
+            local idx=$(($1 - 2))
+            pos_get_variable "$(hostname)"NIC"$idx" --from-global 2>/dev/null || echo "0"
+        else
+            echo "$dev"
+        fi
+    }
+
+    local ips=()
+    if [ "$partysize" -eq 3 ]; then
+        [ "$player" -eq 0 ] && ips=(3 4)
+        [ "$player" -eq 1 ] && ips=(4 2)
+        [ "$player" -eq 2 ] && ips=(2 3)
+    elif [ "$partysize" -eq 4 ]; then
+        [ "$player" -eq 0 ] && ips=(3 4 5)
+        [ "$player" -eq 1 ] && ips=(4 5 2)
+        [ "$player" -eq 2 ] && ips=(5 2 3)
+        [ "$player" -eq 3 ] && ips=(2 3 4)
+    fi
+
+    NIC0=$(get_nic_for_ip "${ips[0]}")
+    NIC1=$(get_nic_for_ip "${ips[1]}")
+    if [ "$partysize" -eq 4 ]; then
+        NIC2=$(get_nic_for_ip "${ips[2]}")
+    else
+        NIC2=0
+    fi
+}
+
 limitCPUs() {
 
     cpus=$(pos_get_variable cpus --from-loop)
@@ -48,9 +83,7 @@ limitBandwidth() {
     [ "$nodemanipulate" -eq 7 ] && return 0
 
     bandwidth=$(pos_get_variable bandwidths --from-loop)
-    NIC0=$(pos_get_variable "$(hostname)"NIC0 --from-global)
-    NIC1=$(pos_get_variable "$(hostname)"NIC1 --from-global) || NIC1=0
-    NIC2=$(pos_get_variable "$(hostname)"NIC2 --from-global) || NIC2=0
+    load_nics
 
     # three interconnected nodes
     if [ "$partysize" -eq 3 ]; then
@@ -91,9 +124,7 @@ setLatency() {
     [ "$nodemanipulate" -eq 7 ] && return 0
 
     latency=$(pos_get_variable latencies --from-loop)
-    NIC0=$(pos_get_variable "$(hostname)"NIC0 --from-global)
-    NIC1=$(pos_get_variable "$(hostname)"NIC1 --from-global) || NIC1=0
-    NIC2=$(pos_get_variable "$(hostname)"NIC2 --from-global) || NIC2=0
+    load_nics
 
     # three interconnected nodes
     if [ "$partysize" -eq 3 ]; then
@@ -130,9 +161,7 @@ setPacketdrop() {
     packetdrop=$(pos_get_variable packetdrops --from-loop)
     # check if switch topology (bc in this case only 1 interface pro host)
     # for 3 interconnected hosts topologies
-    NIC0=$(pos_get_variable "$(hostname)"NIC0 --from-global)
-    NIC1=$(pos_get_variable "$(hostname)"NIC1 --from-global) || NIC1=0
-    NIC2=$(pos_get_variable "$(hostname)"NIC2 --from-global) || NIC2=0
+    load_nics
     tc qdisc add dev "$NIC0" root netem loss "$packetdrop"%
     [ "$NIC1" != 0 ] && tc qdisc add dev "$NIC1" root netem loss "$packetdrop"%
     [ "$NIC2" != 0 ] && tc qdisc add dev "$NIC2" root netem loss "$packetdrop"%
@@ -153,9 +182,7 @@ setLatencyBandwidth() {
     latency=$(pos_get_variable latencies --from-loop)
     bandwidth=$(pos_get_variable bandwidths --from-loop)
 
-    NIC0=$(pos_get_variable "$(hostname)"NIC0 --from-global)
-    NIC1=$(pos_get_variable "$(hostname)"NIC1 --from-global) || NIC1=0
-    NIC2=$(pos_get_variable "$(hostname)"NIC2 --from-global) || NIC2=0
+    load_nics
 
     tc qdisc add dev "$NIC0" root tbf rate "$bandwidth"mbit latency "$latency"ms burst 50kb
     # check if switch topology (bc in this case only 1 interface pro host)
@@ -169,9 +196,7 @@ setBandwidthPacketdrop() {
     bandwidth=$(pos_get_variable bandwidths --from-loop)
     packetdrop=$(pos_get_variable packetdrops --from-loop)
 
-    NIC0=$(pos_get_variable "$(hostname)"NIC0 --from-global)
-    NIC1=$(pos_get_variable "$(hostname)"NIC1 --from-global) || NIC1=0
-    NIC2=$(pos_get_variable "$(hostname)"NIC2 --from-global) || NIC2=0
+    load_nics
 
     tc qdisc add dev "$NIC0" root handle 1:0 netem loss "$packetdrop"%
     tc qdisc add dev "$NIC0" parent 1:1 handle 10: tbf rate "$bandwidth"mbit burst 50kb limit 50kb
@@ -188,9 +213,7 @@ setPacketdropLatency() {
     packetdrop=$(pos_get_variable packetdrops --from-loop)
     latency=$(pos_get_variable latencies --from-loop)
 
-    NIC0=$(pos_get_variable "$(hostname)"NIC0 --from-global)
-    NIC1=$(pos_get_variable "$(hostname)"NIC1 --from-global) || NIC1=0
-    NIC2=$(pos_get_variable "$(hostname)"NIC2 --from-global) || NIC2=0
+    load_nics
 
     tc qdisc add dev "$NIC0" root netem delay "$latency"ms loss "$packetdrop"%
     # check if switch topology (bc in this case only 1 interface pro host)
@@ -232,9 +255,7 @@ resetTrafficControl() {
     # skip when code 7 -> do not manipulate any link
     [ "$nodemanipulate" -eq 7 ] && return 0
 
-    NIC0=$(pos_get_variable "$(hostname)"NIC0 --from-global)
-    NIC1=$(pos_get_variable "$(hostname)"NIC1 --from-global) || NIC1=0
-    NIC2=$(pos_get_variable "$(hostname)"NIC2 --from-global) || NIC2=0
+    load_nics
 
     # three interconnected nodes
     if [ "$partysize" -eq 3 ]; then

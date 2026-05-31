@@ -46,6 +46,25 @@ nic2=$(pos_get_variable "$(hostname)"NIC2 --from-global) || nic2=0
 
 ips=()
 
+get_nic_to_peer() {
+	local peer_ipaddr="$1"
+	local default_nic="$2"
+	# map ipaddr back to host name
+	# nodes is the array of reserved nodes. The i-th node has ipaddr = i + 2
+	local peer_name="${nodes[$((peer_ipaddr - 2))]}"
+	
+	# query global-variables.yml for the specific comment
+	# e.g., "gardNIC0: enp193s0f1      # To Goracle"
+	local line
+	line=$(grep -i "^$(hostname)NIC[0-9]:" "$REPO2_DIR/global-variables.yml" | grep -i "to ${peer_name}" | head -n 1)
+	if [ -n "$line" ]; then
+		echo "$line" | cut -d':' -f2 | awk '{print $1}'
+	else
+		# fallback to the default nic passed in
+		echo "$default_nic"
+	fi
+}
+
 ######
 ### three nodes indirect connection topology setup
 ### node 2 --- node 1 --- node 3
@@ -100,23 +119,27 @@ if [ "$groupsize" -ge 4 ] && [ "$nic1" != 0 ] && [ "$nic2" != 0 ]; then
 	[ "$ipaddr" -eq 4 ] && ips+=( 5 2 3 )
 	[ "$ipaddr" -eq 5 ] && ips+=( 2 3 4 )
 
-	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic0"
-	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic1"
-	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic2"
+	nic_peer0=$(get_nic_to_peer "${ips[0]}" "$nic0")
+	nic_peer1=$(get_nic_to_peer "${ips[1]}" "$nic1")
+	nic_peer2=$(get_nic_to_peer "${ips[2]}" "$nic2")
 
-	ip link set dev "$nic0" up
-	ip link set dev "$nic1" up
-	ip link set dev "$nic2" up
+	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic_peer0"
+	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic_peer1"
+	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic_peer2"
 
-	ip route add 10.10."$network"."${ips[0]}" dev "$nic0"
-	ip route add 10.10."$network"."${ips[1]}" dev "$nic1"
-	ip route add 10.10."$network"."${ips[2]}" dev "$nic2"
+	ip link set dev "$nic_peer0" up
+	ip link set dev "$nic_peer1" up
+	ip link set dev "$nic_peer2" up
+
+	ip route add 10.10."$network"."${ips[0]}" dev "$nic_peer0"
+	ip route add 10.10."$network"."${ips[1]}" dev "$nic_peer1"
+	ip route add 10.10."$network"."${ips[2]}" dev "$nic_peer2"
 
 	# to achieve high speeds, increase mtu
 	if [ "$highspeed" -eq 1 ]; then
-		ip link set dev "$nic0" mtu 9700
-		ip link set dev "$nic1" mtu 9700
-		ip link set dev "$nic2" mtu 9700
+		ip link set dev "$nic_peer0" mtu 9700
+		ip link set dev "$nic_peer1" mtu 9700
+		ip link set dev "$nic_peer2" mtu 9700
 	fi
 
 # three nodes direct connection topology if true
@@ -137,19 +160,22 @@ elif [ "$nic1" != 0 ]; then
 	[ "$ipaddr" -eq 3 ] && ips+=( 4 2 )
 	[ "$ipaddr" -eq 4 ] && ips+=( 2 3 )
 
-	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic0"
-	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic1"
+	nic_peer0=$(get_nic_to_peer "${ips[0]}" "$nic0")
+	nic_peer1=$(get_nic_to_peer "${ips[1]}" "$nic1")
 
-	ip link set dev "$nic0" up
-	ip link set dev "$nic1" up
+	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic_peer0"
+	ip addr add 10.10."$network"."$ipaddr"/32 dev "$nic_peer1"
 
-	ip route add 10.10."$network"."${ips[0]}" dev "$nic0"
-	ip route add 10.10."$network"."${ips[1]}" dev "$nic1"
+	ip link set dev "$nic_peer0" up
+	ip link set dev "$nic_peer1" up
+
+	ip route add 10.10."$network"."${ips[0]}" dev "$nic_peer0"
+	ip route add 10.10."$network"."${ips[1]}" dev "$nic_peer1"
 
 	# to achieve high speeds, increase mtu
 	if [ "$(hostname | grep -cE "idex|meld|tinyman|yieldly|algofi|gard|goracle|zone")" -eq 1 ]; then
-		ip link set dev "$nic0" mtu 9700
-		ip link set dev "$nic1" mtu 9700
+		ip link set dev "$nic_peer0" mtu 9700
+		ip link set dev "$nic_peer1" mtu 9700
 	fi
 
 # here the testhosts are connected via switch
@@ -179,7 +205,7 @@ for ip in "${ips[@]}"; do
 	ping -c 5 10.10."$network"."$ip" &>> pinglog || true
 done
 
-pos_upload pinglog
+pos_upload pinglog || true
 
 # log link test
 # shellcheck source=../tools/speedtest.sh
@@ -212,7 +238,7 @@ source "$REPO2_DIR"/tools/speedtest.sh
 
 stopserver
 
-pos_upload speedtest
+pos_upload speedtest || true
 
 # set up swap disk for RAM pageswapping measurements
 if [ -n "$SWAP" ] && [ -b /dev/nvme0n1 ]; then
